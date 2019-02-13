@@ -13,7 +13,7 @@ module.exports = fork;
  * cluster fork
  *
  * @param {Object} [options]
- *   - {String} exec       exec file path
+ *   - {String} exec       exec file path 文件路径
  *   - {Array} [args]      exec arguments
  *   - {Array} [slaves]    slave processes
  *   - {Boolean} [silent]  whether or not to send output to parent's stdio, default is `false`
@@ -24,6 +24,7 @@ module.exports = fork;
  */
 
 function fork(options) {
+  // 如果是 worker 子进程
   if (cluster.isWorker) {
     return;
   }
@@ -72,6 +73,7 @@ function fork(options) {
       opts.args = args;
     }
 
+    // 用于修改默认'fork' 行为，一旦调用，将会按照 cluster.settings 进行设置，只能由主进程调用
     cluster.setupMaster(opts);
   }
 
@@ -79,9 +81,11 @@ function fork(options) {
   var disconnectCount = 0;
   var unexpectedCount = 0;
 
+  // 在工作进程的 IPC 管道被断开后触发本事件
   cluster.on('disconnect', function (worker) {
     var log = console[worker.disableRefork ? 'info' : 'error'];
     disconnectCount++;
+    // 当工作进程被终止时（包括自动退出或被发送信号），这个方法返回 true，否则返回 false
     var isDead = worker.isDead && worker.isDead();
     var propertyName = worker.hasOwnProperty('exitedAfterDisconnect') ? 'exitedAfterDisconnect' : 'suicide';
     log('[%s] [cfork:master:%s] worker:%s disconnect (%s: %s, state: %s, isDead: %s, worker.disableRefork: %s)',
@@ -112,6 +116,7 @@ function fork(options) {
     }
   });
 
+  // 当任何一个工作进程关闭的时候，cluster 模块都将触发 exit 事件
   cluster.on('exit', function (worker, code, signal) {
     var log = console[worker.disableRefork ? 'info' : 'error'];
     var isExpected = !!disconnects[worker.process.pid];
@@ -177,7 +182,7 @@ function fork(options) {
   return cluster;
 
   /**
-   * allow refork
+   * allow refork 控制重启的次数
    */
   function allow() {
     if (!refork) {
@@ -201,7 +206,7 @@ function fork(options) {
   }
 
   /**
-   * uncaughtException default handler
+   * uncaughtException default handler 打印错误日志
    */
 
   function onerror(err) {
@@ -219,6 +224,7 @@ function fork(options) {
 
   function onUnexpected(worker, code, signal) {
     var exitCode = worker.process.exitCode;
+    // 当调用 .kill() 或者 .disconnect() 方法时被设置，在这之前都是 undefined；suicide 已经被废弃；返回 boolean 类型
     var propertyName = worker.hasOwnProperty('exitedAfterDisconnect') ? 'exitedAfterDisconnect' : 'suicide';
     var err = new Error(util.format('worker:%s died unexpected (code: %s, signal: %s, %s: %s, state: %s)',
       worker.process.pid, exitCode, signal, propertyName, worker[propertyName], worker.state));
@@ -238,7 +244,7 @@ function fork(options) {
   }
 
   /**
-   * normalize slave config
+   * normalize slave config 规范化 slave 进程配置
    */
   function normalizeSlaveConfig(opt) {
     // exec path
@@ -260,6 +266,7 @@ function fork(options) {
       cluster.settings = settings;
       cluster.setupMaster();
     }
+    // attachedEnv：增加进程环境变量，以 Key/value 对的形式
     return cluster.fork(attachedEnv);
   }
 }
